@@ -1,0 +1,24 @@
+dataset:
+  glob: data/raw/eclipse/*_dataset_issues.csv
+  chunksize: 50000
+
+output:
+  root_dir: reports
+  experiments_dir: reports/experiments
+
+processed:
+  core_dir: data/processed/eclipse_core
+
+training:
+  enabled: false
+
+cv:
+  strategy: auto
+  n_splits: 3
+  shuffle: false
+  random_state: 42
+
+readiness:
+  minimum_total_rows: 500
+  minimum_class_rows: 20
+  rare_class_warning: 100

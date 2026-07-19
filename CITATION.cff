@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+title: "Automatic Classification of Software Defects Using Machine Learning"
+message: "If you use this repository in academic work, cite the thesis and repository snapshot."
+type: software
+authors:
+  - name: "GitHub Copilot"
+version: 0.1.0
+date-released: 2026-07-19

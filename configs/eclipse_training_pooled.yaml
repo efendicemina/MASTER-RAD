@@ -1,0 +1,63 @@
+dataset:
+  glob: data/processed/eclipse_core/*.parquet
+  chunksize: 50000
+
+output:
+  root_dir: reports
+  experiments_dir: reports/experiments
+
+training:
+  enabled: false
+  researcher_approval_required: true
+
+input:
+  format: parquet
+  predictive_columns: [summary, description]
+
+label_exclusions: [enhancement, task, feature, unknown, n/a, none, ""]
+
+split:
+  strategy: chronological
+  train_fraction: 0.8
+  random_state: 42
+  allow_missing_dates_fallback: false
+
+cv:
+  strategy: auto
+  n_splits: 3
+  shuffle: false
+  random_state: 42
+
+features:
+  representation: summary_description
+  analyzer: word
+  ngram_range: [1, 2]
+  min_df: 3
+  max_df: 0.98
+  max_features: 100000
+  sublinear_tf: true
+  lowercase: false
+
+models:
+  enabled: [DummyClassifier, LogisticRegression, LinearSVC]
+  search_method: grid
+  class_weight: balanced
+  random_state: 42
+  param_grids:
+    DummyClassifier: {}
+    LogisticRegression:
+      clf__C: [0.5, 1.0]
+    LinearSVC:
+      clf__C: [0.5, 1.0]
+
+primary_metric: macro_f1
+
+bootstrap:
+  n_resamples: 2000
+  confidence_level: 0.95
+  random_state: 42
+
+experiment:
+  design: pooled_multi_project_temporal
+  duplicate_group_protection: true
+  project_imbalance_audit_required: true
