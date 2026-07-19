@@ -126,5 +126,7 @@ def test_end_to_end_smoke_training(sample_config_path):
     assert outcome.model_path.exists()
     result = evaluate_experiment(outcome.experiment_dir, sample_config_path)
     assert "macro_f1" in result["metrics"]
+    with pytest.raises(ValueError, match="one-shot"):
+        evaluate_experiment(outcome.experiment_dir, sample_config_path)
     assert (outcome.experiment_dir / "tables" / "classification_report.csv").exists()
     assert (outcome.experiment_dir / "metrics" / "error_analysis.json").exists()

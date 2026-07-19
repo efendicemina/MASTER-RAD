@@ -97,6 +97,12 @@ python -m defect_classifier finalize-pretraining --config configs/eclipse_full.y
 The Eclipse ingestion and candidate training configurations keep `training.enabled: false`.
 Researcher approval and human label-quality review are required before any full-data training.
 
+The approved controlled MYLYN pilot is isolated in
+`configs/eclipse_training_mylyn_pilot.yaml`. It uses only the processed MYLYN Parquet,
+the six original severity labels, chronological holdout, duplicate-group-purged
+expanding-window CV, and single-threaded model search. Do not change this configuration
+into a pooled or cross-project run without a separate research decision.
+
 Prepare data:
 
 ```powershell
@@ -114,6 +120,9 @@ Evaluate:
 ```powershell
 python -m defect_classifier evaluate --config configs/baseline.yaml
 ```
+
+Held-out test evaluation is one-shot. If reporting is interrupted after predictions are
+persisted, the evaluator resumes only the missing reports and does not repeat inference.
 
 Run the full pipeline:
 

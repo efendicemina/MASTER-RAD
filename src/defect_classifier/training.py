@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+import shutil
 from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
@@ -9,6 +12,7 @@ from time import perf_counter
 from typing import Any
 
 import pandas as pd
+import psutil
 from sklearn.metrics import f1_score
 
 from .config import load_config
@@ -23,6 +27,7 @@ from .data_validation import (
 from .error_analysis import build_error_analysis
 from .evaluation import bootstrap_macro_f1_ci, evaluate_predictions
 from .models import build_pipeline, build_search, supported_models
+from .pilot_preparation import prepare_pilot_dataframe
 from .reporting import (
     make_experiment_dir,
     save_confusion_matrix_figure,
@@ -33,6 +38,7 @@ from .reporting import (
 from .splitting import (
     SplitResult,
     chronological_holdout,
+    cv_fold_distribution,
     purge_duplicate_group_overlap,
     stratified_random_holdout,
 )
@@ -135,32 +141,67 @@ def train_experiment(config_path: str | Path) -> TrainingOutcome:
             "Training is disabled for this ingestion/audit configuration; "
             "create an explicit training configuration after readiness review"
         )
-    cleaned_frame, _, inspection_summary = prepare_dataframe(config)
+    preparation = None
+    if config.get("training", {}).get("controlled_pilot", False):
+        preparation = prepare_pilot_dataframe(config)
+        cleaned_frame = preparation.frame
+        inspection_summary = preparation.filtering_summary
+    else:
+        cleaned_frame, _, inspection_summary = prepare_dataframe(config)
     split_result = split_dataset(config, cleaned_frame)
 
-    labels = sorted(
-        split_result.development[config["target_column"]]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-        .unique()
-        .tolist()
+    labels = list(config.get("target_labels", [])) or sorted(
+        split_result.development[config["target_column"]].astype(str).unique().tolist()
     )
     if not labels:
         raise ValueError("No target labels remain after filtering")
+    missing_development_labels = sorted(
+        set(labels) - set(split_result.development[config["target_column"]])
+    )
+    if missing_development_labels:
+        raise ValueError(f"Approved labels missing from development: {missing_development_labels}")
 
     timestamp = utc_now_iso().replace(":", "").replace("-", "")
     experiment_id = f"{safe_filename(Path(config_path).stem)}_{timestamp}"
     experiment_dir = make_experiment_dir(config["output"]["root_dir"], experiment_id)
     save_payload(experiment_dir / "tables" / "inspection.json", inspection_summary)
     write_json(experiment_dir / "config_snapshot.json", config)
+    if preparation is not None:
+        save_payload(
+            experiment_dir / "metrics" / "data_filtering_summary.json",
+            preparation.filtering_summary,
+        )
+        save_frame(
+            experiment_dir / "tables" / "duplicate_removals.csv",
+            preparation.duplicate_removals,
+        )
+        save_frame(
+            experiment_dir / "tables" / "conflicting_duplicate_labels.csv",
+            preparation.conflicting_duplicate_labels,
+        )
 
     split_columns = _research_split_columns(split_result.development, config)
+    persisted_development = _redact_text_frame(split_result.development[split_columns], config)
+    persisted_test = _redact_text_frame(split_result.test[split_columns], config)
     write_csv(
         experiment_dir / "tables" / "development_split.csv",
-        split_result.development[split_columns],
+        persisted_development,
     )
-    write_csv(experiment_dir / "tables" / "test_split.csv", split_result.test[split_columns])
+    write_csv(experiment_dir / "tables" / "test_split.csv", persisted_test)
+    save_frame(
+        experiment_dir / "tables" / "development_class_distribution.csv",
+        _class_distribution(split_result.development, config["target_column"], labels),
+    )
+    save_frame(
+        experiment_dir / "tables" / "test_class_distribution.csv",
+        _class_distribution(split_result.test, config["target_column"], labels),
+    )
+    fold_distribution = cv_fold_distribution(
+        split_result.development,
+        config["target_column"],
+        int(config["cv"]["n_splits"]),
+    )
+    save_frame(experiment_dir / "tables" / "cv_fold_distribution.csv", fold_distribution)
 
     scoring = _build_scorer(str(config["primary_metric"]), labels)
     best_result: dict[str, Any] | None = None
@@ -169,12 +210,29 @@ def train_experiment(config_path: str | Path) -> TrainingOutcome:
     dev_target = (
         split_result.development[config["target_column"]].astype(str).str.strip().str.lower()
     )
+    resource_before = _resource_snapshot()
+    minimum_available_gb = float(
+        config.get("resources", {}).get("minimum_available_memory_gb", 2.0)
+    )
+    if resource_before["available_memory_gb"] < minimum_available_gb:
+        raise MemoryError(
+            f"Available memory {resource_before['available_memory_gb']:.2f} GiB is below "
+            f"configured minimum {minimum_available_gb:.2f} GiB"
+        )
+    feature_estimate = _estimate_tfidf_dimensions(dev_features, config)
+    save_payload(
+        experiment_dir / "metrics" / "resource_estimate.json",
+        {"before_training": resource_before, "tfidf_development_estimate": feature_estimate},
+    )
 
     for model_name in supported_models(config):
         pipeline = build_pipeline(model_name, config)
         search = build_search(config, model_name, pipeline, scoring=scoring)
         start = perf_counter()
+        process = psutil.Process()
+        rss_before = process.memory_info().rss
         search.fit(dev_features, dev_target)
+        rss_after = process.memory_info().rss
         best_score = float(search.best_score_)
         if not isfinite(best_score):
             raise ValueError(
@@ -185,6 +243,19 @@ def train_experiment(config_path: str | Path) -> TrainingOutcome:
         best_index = int(search.best_index_)
         score_std = float(search.cv_results_["std_test_score"][best_index])
         duration = perf_counter() - start
+        cv_results = pd.DataFrame(search.cv_results_)
+        save_frame(
+            experiment_dir / "tables" / f"cv_results_{safe_filename(model_name)}.csv",
+            cv_results,
+        )
+        model_features = _extract_linear_features(search.best_estimator_, labels)
+        if model_features is not None:
+            save_frame(
+                experiment_dir
+                / "tables"
+                / f"influential_features_{safe_filename(model_name)}.csv",
+                model_features,
+            )
         comparison_rows.append(
             {
                 "model": model_name,
@@ -192,6 +263,9 @@ def train_experiment(config_path: str | Path) -> TrainingOutcome:
                 "cv_macro_f1_std": score_std,
                 "training_seconds": duration,
                 "best_params": best_params,
+                "rss_before_bytes": rss_before,
+                "rss_after_bytes": rss_after,
+                "rss_delta_bytes": rss_after - rss_before,
             }
         )
         if best_result is None or best_score > best_result["score"]:
@@ -219,7 +293,17 @@ def train_experiment(config_path: str | Path) -> TrainingOutcome:
         "git_commit": git_commit_hash(Path.cwd()),
         "system": system_metadata(),
         "package_versions": package_versions(
-            ["pandas", "numpy", "scikit-learn", "matplotlib", "PyYAML", "joblib", "scipy"]
+            [
+                "pandas",
+                "numpy",
+                "scikit-learn",
+                "matplotlib",
+                "PyYAML",
+                "joblib",
+                "scipy",
+                "pyarrow",
+                "psutil",
+            ]
         ),
         "random_seed": int(config["split"].get("random_state", 42)),
         "input_file_name": str(config["dataset"]["path"]),
@@ -244,6 +328,12 @@ def train_experiment(config_path: str | Path) -> TrainingOutcome:
         "comparison_rows": comparison_rows,
         "training_seconds_full_dev_fit": fit_duration,
         "labels": labels,
+        "filtering_summary": inspection_summary,
+        "resource_before_training": resource_before,
+        "resource_after_training": _resource_snapshot(),
+        "tfidf_development_estimate": feature_estimate,
+        "input_provenance": _input_provenance(config),
+        "test_evaluation_count": 0,
     }
     metadata_path = experiment_dir / "metadata.json"
     write_json(metadata_path, metadata)
@@ -264,6 +354,14 @@ def evaluate_experiment(experiment_dir: str | Path, config_path: str | Path) -> 
     """Evaluate the saved model on the held-out test split."""
 
     experiment_path = Path(experiment_dir)
+    metrics_path = experiment_path / "metrics" / "test_metrics.json"
+    if metrics_path.exists():
+        metadata = _read_json(experiment_path / "metadata.json")
+        if int(metadata.get("test_evaluation_count", 0)) == 0:
+            return _finalize_saved_evaluation(experiment_path, metadata)
+        raise ValueError(
+            "Held-out test metrics already exist; final test evaluation is intentionally one-shot"
+        )
     config = load_config(config_path)
     model = _load_model(experiment_path / "artifacts" / "model.joblib")
     test_split = pd.read_csv(experiment_path / "tables" / "test_split.csv")
@@ -306,7 +404,7 @@ def evaluate_experiment(experiment_dir: str | Path, config_path: str | Path) -> 
         }
     )
     save_frame(experiment_path / "predictions" / "test_predictions.csv", predictions_frame)
-    save_payload(experiment_path / "metrics" / "test_metrics.json", evaluation.metrics)
+    save_payload(metrics_path, evaluation.metrics)
     save_payload(
         experiment_path / "metrics" / "classification_report.json",
         evaluation.classification_report,
@@ -319,23 +417,50 @@ def evaluate_experiment(experiment_dir: str | Path, config_path: str | Path) -> 
         experiment_path / "tables" / "confusion_matrix_normalized.csv",
         evaluation.normalized_confusion_matrix,
     )
+    finalized = _finalize_saved_evaluation(experiment_path, metadata)
+    finalized["evaluation"] = evaluation
+    return finalized
+
+
+def _finalize_saved_evaluation(
+    experiment_path: Path, metadata: dict[str, Any]
+) -> dict[str, Any]:
+    """Finish reporting from persisted predictions without repeating test inference."""
+
+    predictions_frame = pd.read_csv(experiment_path / "predictions" / "test_predictions.csv")
+    metrics = _read_json(experiment_path / "metrics" / "test_metrics.json")
+    confusion = pd.read_csv(experiment_path / "tables" / "confusion_matrix.csv", index_col=0)
+    normalized = pd.read_csv(
+        experiment_path / "tables" / "confusion_matrix_normalized.csv", index_col=0
+    )
     save_confusion_matrix_figure(
-        experiment_path / "figures" / "confusion_matrix.png",
-        evaluation.confusion_matrix,
-        "Confusion Matrix",
+        experiment_path / "figures" / "confusion_matrix.png", confusion, "Confusion Matrix"
     )
     save_confusion_matrix_figure(
         experiment_path / "figures" / "confusion_matrix_normalized.png",
-        evaluation.normalized_confusion_matrix,
+        normalized,
         "Normalized Confusion Matrix",
     )
     error_analysis = build_error_analysis(predictions_frame, "summary", "description")
     save_payload(experiment_path / "metrics" / "error_analysis.json", error_analysis)
-    return {
-        "metrics": evaluation.metrics,
-        "predictions": predictions_frame,
-        "evaluation": evaluation,
-    }
+    metadata["test_evaluation_count"] = int(metadata.get("test_evaluation_count", 0)) + 1
+    metadata["test_evaluated_utc"] = utc_now_iso()
+    metadata["resource_after_evaluation"] = _resource_snapshot()
+    metadata["artifact_sizes_bytes"] = _artifact_sizes(experiment_path)
+    write_json(experiment_path / "metadata.json", metadata)
+    save_payload(
+        experiment_path / "metrics" / "runtime_resource_summary.json",
+        {
+            "model_comparison": metadata["comparison_rows"],
+            "final_fit_seconds": metadata["training_seconds_full_dev_fit"],
+            "inference_seconds": metrics["inference_seconds"],
+            "resource_before_training": metadata["resource_before_training"],
+            "resource_after_training": metadata["resource_after_training"],
+            "resource_after_evaluation": metadata["resource_after_evaluation"],
+            "artifact_sizes_bytes": metadata["artifact_sizes_bytes"],
+        },
+    )
+    return {"metrics": metrics, "predictions": predictions_frame}
 
 
 def _load_model(path: Path):
@@ -403,3 +528,108 @@ def _research_split_columns(frame: pd.DataFrame, config: dict[str, Any]) -> list
         "duplicate_group",
     ]
     return list(dict.fromkeys(column for column in candidates if column in frame.columns))
+
+
+def _class_distribution(frame: pd.DataFrame, target: str, labels: list[str]) -> pd.DataFrame:
+    counts = frame[target].value_counts()
+    return pd.DataFrame(
+        {
+            "severity": labels,
+            "count": [int(counts.get(label, 0)) for label in labels],
+            "percentage": [float(counts.get(label, 0) / max(len(frame), 1)) for label in labels],
+        }
+    )
+
+
+def _resource_snapshot() -> dict[str, Any]:
+    memory = psutil.virtual_memory()
+    disk = shutil.disk_usage(Path.cwd())
+    process = psutil.Process()
+    return {
+        "available_memory_gb": memory.available / 2**30,
+        "total_memory_gb": memory.total / 2**30,
+        "process_rss_bytes": process.memory_info().rss,
+        "disk_free_gb": disk.free / 2**30,
+        "disk_total_gb": disk.total / 2**30,
+    }
+
+
+def _estimate_tfidf_dimensions(features: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any]:
+    from .features import build_tfidf_vectorizer
+    from .preprocessing import TextCombiner
+
+    feature_config = dict(config["features"])
+    configured_ranges = []
+    for grid in config["models"].get("param_grids", {}).values():
+        configured_ranges.extend(grid.get("tfidf__ngram_range", []))
+    if configured_ranges:
+        feature_config["ngram_range"] = max(configured_ranges, key=lambda value: tuple(value))
+    combiner = TextCombiner(
+        config["text_columns"]["summary"],
+        config["text_columns"]["description"],
+        config["features"]["representation"],
+        config["cleaning"],
+    )
+    texts = combiner.fit_transform(features)
+    vectorizer = build_tfidf_vectorizer(feature_config)
+    matrix = vectorizer.fit_transform(texts)
+    sparse_bytes = matrix.data.nbytes + matrix.indices.nbytes + matrix.indptr.nbytes
+    return {
+        "development_rows": int(matrix.shape[0]),
+        "estimated_max_vocabulary_features": int(matrix.shape[1]),
+        "nonzero_entries": int(matrix.nnz),
+        "sparse_matrix_bytes": int(sparse_bytes),
+        "ngram_range_used_for_estimate": list(feature_config["ngram_range"]),
+        "fit_scope": "development_only",
+    }
+
+
+def _redact_text_frame(frame: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
+    result = frame.copy()
+    email_pattern = re.compile(r"\S*@\S*")
+    url_pattern = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
+    for column in [config["text_columns"]["summary"], config["text_columns"]["description"]]:
+        if column in result:
+            result[column] = (
+                result[column]
+                .fillna("")
+                .astype(str)
+                .map(lambda value: url_pattern.sub("[URL]", email_pattern.sub("[EMAIL]", value)))
+            )
+    return result
+
+
+def _input_provenance(config: dict[str, Any]) -> dict[str, Any]:
+    parquet_path = Path(config["dataset"]["path"])
+    provenance: dict[str, Any] = {
+        "parquet_path": str(parquet_path),
+        "parquet_sha256": file_fingerprint(parquet_path),
+        "parquet_size_bytes": parquet_path.stat().st_size,
+    }
+    manifest_path = parquet_path.parent / "manifest.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        entry = next(
+            (
+                row
+                for row in manifest
+                if Path(row["output_parquet_path"]).resolve() == parquet_path.resolve()
+            ),
+            None,
+        )
+        if entry:
+            provenance["raw_source_path"] = entry["source_path"]
+            provenance["raw_source_sha256"] = entry["source_sha256"]
+            provenance["raw_source_size_bytes"] = entry["source_file_size"]
+            provenance["ingestion_configuration_fingerprint"] = entry[
+                "configuration_fingerprint"
+            ]
+    return provenance
+
+
+def _artifact_sizes(experiment_path: Path) -> dict[str, int]:
+    return {
+        str(path.relative_to(experiment_path)): path.stat().st_size
+        for path in experiment_path.rglob("*")
+        if path.is_file()
+    }

@@ -25,11 +25,13 @@ def normalize_frame_columns(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str
 
 
 def load_raw_csv(path: str | Path) -> pd.DataFrame:
-    """Load a CSV file using pandas."""
+    """Load a supported single-file research dataset."""
 
     csv_path = Path(path)
     if not csv_path.exists():
         raise FileNotFoundError(f"Dataset not found: {csv_path}")
+    if csv_path.suffix.lower() == ".parquet":
+        return pd.read_parquet(csv_path)
     return pd.read_csv(csv_path)
 
 

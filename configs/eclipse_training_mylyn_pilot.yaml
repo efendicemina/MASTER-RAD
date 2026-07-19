@@ -1,0 +1,93 @@
+dataset:
+  path: data/processed/eclipse_core/MYLYN.parquet
+  chunksize: 50000
+
+output:
+  root_dir: reports
+  experiments_dir: reports/experiments
+
+training:
+  enabled: true
+  controlled_pilot: true
+
+source_columns:
+  id: [issue_id]
+  summary: [summary]
+  description: [description]
+  severity: [severity]
+  creation_time: [creation_time]
+  product: [product]
+  component: [component]
+  dupe_of: [dupe_of]
+
+target_column: severity
+target_labels: [blocker, critical, major, normal, minor, trivial]
+label_exclusions: [enhancement, task, feature, unknown, n/a, none, ""]
+
+label_grouping:
+  enabled: false
+  groups: {}
+
+text_columns:
+  summary: summary
+  description: description
+
+cleaning:
+  lowercase: true
+  remove_html: true
+  replace_urls: true
+  replace_emails: true
+  remove_code_blocks: false
+  remove_stack_traces: false
+  normalize_unicode: true
+  normalize_whitespace: true
+
+split:
+  strategy: chronological
+  train_fraction: 0.8
+  random_state: 42
+  allow_missing_dates_fallback: false
+
+features:
+  representation: summary_description
+  analyzer: word
+  ngram_range: [1, 1]
+  min_df: 2
+  max_df: 0.98
+  max_features: 50000
+  sublinear_tf: true
+  lowercase: false
+
+models:
+  enabled: [DummyClassifier, MultinomialNB, LogisticRegression, LinearSVC]
+  search_method: grid
+  n_jobs: 1
+  class_weight: balanced
+  random_state: 42
+  param_grids:
+    DummyClassifier: {}
+    MultinomialNB:
+      clf__alpha: [0.1, 0.5, 1.0]
+      tfidf__ngram_range: [[1, 1], [1, 2]]
+    LogisticRegression:
+      clf__C: [0.5, 1.0]
+      tfidf__ngram_range: [[1, 1], [1, 2]]
+    LinearSVC:
+      clf__C: [0.5, 1.0]
+      tfidf__ngram_range: [[1, 1], [1, 2]]
+
+cv:
+  strategy: time_series
+  n_splits: 3
+  shuffle: false
+  random_state: 42
+
+primary_metric: macro_f1
+
+bootstrap:
+  n_resamples: 1000
+  confidence_level: 0.95
+  random_state: 42
+
+resources:
+  minimum_available_memory_gb: 2.0

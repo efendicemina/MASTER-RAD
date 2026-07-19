@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import TimeSeriesSplit, train_test_split
 
 
 @dataclass(slots=True)
@@ -14,6 +14,63 @@ class SplitResult:
     development: pd.DataFrame
     test: pd.DataFrame
     duplicate_overlap_rows_removed: int = 0
+
+
+class PurgedTimeSeriesSplit:
+    """Expanding-window CV that purges duplicate groups from validation folds."""
+
+    def __init__(self, n_splits: int, group_column: str = "duplicate_group"):
+        self.n_splits = n_splits
+        self.group_column = group_column
+
+    def get_n_splits(self, X=None, y=None, groups=None) -> int:
+        return self.n_splits
+
+    def split(self, X, y=None, groups=None):
+        base = TimeSeriesSplit(n_splits=self.n_splits)
+        for train_indices, validation_indices in base.split(X, y):
+            if not hasattr(X, "columns") or self.group_column not in X.columns:
+                yield train_indices, validation_indices
+                continue
+            train_groups = set(X.iloc[train_indices][self.group_column].astype(str))
+            validation_groups = X.iloc[validation_indices][self.group_column].astype(str)
+            keep = ~validation_groups.isin(train_groups)
+            purged_validation = validation_indices[keep.to_numpy()]
+            if not len(purged_validation):
+                raise ValueError("Duplicate purge removed an entire temporal validation fold")
+            yield train_indices, purged_validation
+
+
+def cv_fold_distribution(
+    frame: pd.DataFrame,
+    target_column: str,
+    n_splits: int,
+    group_column: str = "duplicate_group",
+) -> pd.DataFrame:
+    """Return auditable class counts for the exact CV folds used by model search."""
+
+    splitter = PurgedTimeSeriesSplit(n_splits=n_splits, group_column=group_column)
+    rows = []
+    features = frame.drop(columns=[target_column])
+    for fold, (train_indices, validation_indices) in enumerate(
+        splitter.split(features, frame[target_column]), start=1
+    ):
+        for partition, indices in (
+            ("train", train_indices),
+            ("validation", validation_indices),
+        ):
+            counts = frame.iloc[indices][target_column].value_counts()
+            for label, count in counts.items():
+                rows.append(
+                    {
+                        "fold": fold,
+                        "partition": partition,
+                        "severity": label,
+                        "count": int(count),
+                        "rows_in_partition": int(len(indices)),
+                    }
+                )
+    return pd.DataFrame(rows)
 
 
 def remove_exact_duplicates(frame: pd.DataFrame, subset: list[str]) -> tuple[pd.DataFrame, int]:

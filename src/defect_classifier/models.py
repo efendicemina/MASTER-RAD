@@ -13,6 +13,7 @@ from sklearn.svm import LinearSVC
 
 from .features import build_tfidf_vectorizer
 from .preprocessing import TextCombiner
+from .splitting import PurgedTimeSeriesSplit
 
 
 def build_pipeline(model_name: str, config: dict[str, object]) -> Pipeline:
@@ -55,6 +56,7 @@ def build_search(
 
     param_grid = _normalize_param_grid(config["models"].get("param_grids", {}).get(model_name, {}))
     search_method = str(config["models"].get("search_method", "grid")).lower()
+    n_jobs = int(config["models"].get("n_jobs", 1))
     cv_splitter = _build_cv(config)
     if search_method == "random" and param_grid:
         return RandomizedSearchCV(
@@ -63,7 +65,7 @@ def build_search(
             n_iter=int(config["models"].get("search_iterations", 6)),
             scoring=scoring,
             cv=cv_splitter,
-            n_jobs=-1,
+            n_jobs=n_jobs,
             random_state=int(config["models"].get("random_state", 42)),
             refit=True,
         )
@@ -72,7 +74,7 @@ def build_search(
         param_grid=param_grid or [{}],
         scoring=scoring,
         cv=cv_splitter,
-        n_jobs=-1,
+        n_jobs=n_jobs,
         refit=True,
     )
 
@@ -84,7 +86,7 @@ def supported_models(config: dict[str, object]) -> list[str]:
 
 
 def _build_cv(config: dict[str, object]):
-    from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit
+    from sklearn.model_selection import StratifiedKFold
 
     cv_config = config["cv"]
     strategy = str(cv_config.get("strategy", "auto"))
@@ -93,7 +95,7 @@ def _build_cv(config: dict[str, object]):
             "time_series" if config["split"].get("strategy") == "chronological" else "stratified"
         )
     if strategy == "time_series":
-        return TimeSeriesSplit(n_splits=int(cv_config["n_splits"]))
+        return PurgedTimeSeriesSplit(n_splits=int(cv_config["n_splits"]))
     shuffle = bool(cv_config.get("shuffle", True))
     return StratifiedKFold(
         n_splits=int(cv_config["n_splits"]),

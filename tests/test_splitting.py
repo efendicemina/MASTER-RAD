@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from defect_classifier.splitting import (
+    PurgedTimeSeriesSplit,
     SplitResult,
     chronological_holdout,
     purge_duplicate_group_overlap,
@@ -41,3 +42,17 @@ def test_duplicate_groups_are_not_shared_between_partitions():
     purged, removed = purge_duplicate_group_overlap(split, "duplicate_group")
     assert removed == 1
     assert purged.test["duplicate_group"].tolist() == ["3"]
+
+
+def test_temporal_cv_purges_duplicate_groups_from_validation():
+    frame = pd.DataFrame(
+        {
+            "feature": range(12),
+            "duplicate_group": ["a", "b", "c", "a", "d", "e", "b", "f", "g", "h", "i", "j"],
+        }
+    )
+    splitter = PurgedTimeSeriesSplit(n_splits=3)
+    for train, validation in splitter.split(frame):
+        train_groups = set(frame.iloc[train]["duplicate_group"])
+        validation_groups = set(frame.iloc[validation]["duplicate_group"])
+        assert train_groups.isdisjoint(validation_groups)
