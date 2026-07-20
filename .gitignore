@@ -38,3 +38,8 @@ reports/tables/*
 !reports/tables/.gitkeep
 
 *.joblib
+.cache/
+model_cache/
+embedding_cache/
+*.safetensors
+*.bin
