@@ -234,7 +234,7 @@ def run_project(project: str, root: Path, output_root: Path) -> Path:
         "rare_class_warning": project == "TPTP",
     }
     write_json(experiment / "metadata.json", metadata)
-    dev_rows, fitted_models = [], {}
+    dev_rows = []
     for model_name in MODELS:
         pipeline = build_study_pipeline(
             "summary_description",
@@ -253,12 +253,12 @@ def run_project(project: str, root: Path, output_root: Path) -> Path:
         start = perf_counter()
         full.fit(split.development.drop(columns=["severity"]), split.development["severity"])
         result["full_development_fit_seconds"] = perf_counter() - start
-        fitted_models[model_name] = full
         joblib.dump(full, experiment / "artifacts" / f"{model_name}.joblib")
         write_csv(
             experiment / "tables" / f"influential_features_{model_name}.csv",
             _linear_features(full),
         )
+        del full
     write_csv(experiment / "tables" / "development_model_comparison.csv", pd.DataFrame(dev_rows))
     metadata["status"] = "test_access_started"
     metadata["test_access_started_utc"] = utc_now_iso()
@@ -268,9 +268,11 @@ def run_project(project: str, root: Path, output_root: Path) -> Path:
     test_target = split.test["severity"].tolist()
     model_rows = []
     for model_name in MODELS:
+        fitted_model = joblib.load(experiment / "artifacts" / f"{model_name}.joblib")
         start = perf_counter()
-        predicted = fitted_models[model_name].predict(test_features)
+        predicted = fitted_model.predict(test_features)
         inference = perf_counter() - start
+        del fitted_model
         evaluation = evaluate_predictions(test_target, list(predicted), LABELS)
         ci = bootstrap_macro_f1_ci(test_target, list(predicted), 1000, 0.95, 42, LABELS)
         evaluation.metrics["bootstrap_macro_f1_ci"] = ci
