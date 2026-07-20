@@ -494,6 +494,10 @@ def _error_analysis(
         chosen.text_length, [-1, 200, 1000, np.inf], labels=["short", "medium", "long"]
     )
     errors = chosen[~chosen.correct]
+    predicted_distribution = (
+        chosen.groupby(["fold", "predicted"]).size().reset_index(name="predictions")
+    )
+    write_csv(output / "frozen_embedding_predicted_distribution.csv", predicted_distribution)
     confusions = errors.groupby(["severity", "predicted"]).size().reset_index(name="errors")
     write_csv(output / "frozen_embedding_common_confusions.csv", confusions)
     by_length = (
@@ -553,11 +557,61 @@ def _error_analysis(
     )
 
 
+def run_cpu_fine_tuning_smoke(output: Path) -> None:
+    """Validate both loss paths on synthetic CPU data; not a scientific experiment."""
+
+    import torch
+    from torch.utils.data import DataLoader, TensorDataset
+
+    torch.manual_seed(SEED)
+    features = torch.randn(24, 5)
+    targets = torch.tensor(list(range(6)) * 4)
+    loader = DataLoader(TensorDataset(features, targets), batch_size=6, shuffle=False)
+    rows = []
+    for loss_type in ["weighted_cross_entropy", "focal"]:
+        model = torch.nn.Linear(5, 6)
+        started = perf_counter()
+        result = train_torch_classifier(
+            model,
+            loader,
+            loader,
+            torch.ones(6),
+            loss_type,
+            epochs=2,
+            learning_rate=1e-2,
+            gradient_accumulation=1,
+        )
+        rows.append(
+            {
+                "status": "synthetic_cpu_smoke_only",
+                "loss_type": loss_type,
+                "best_epoch": result["best_epoch"],
+                "best_macro_f1": result["best_macro_f1"],
+                "runtime_seconds": perf_counter() - started,
+                "scientific_result": False,
+            }
+        )
+    write_csv(output / "transformer_cpu_smoke.csv", pd.DataFrame(rows))
+    write_json(
+        output / "transformer_feasibility.json",
+        {
+            "full_development_cv_executed": False,
+            "status": "blocked_by_hardware",
+            "reason": (
+                "CUDA unavailable and available CPU RAM unsafe for full three-fold fine-tuning"
+            ),
+            "weighted_cross_entropy_implemented": True,
+            "focal_loss_implemented": True,
+            "synthetic_cpu_smoke_passed": True,
+        },
+    )
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["hardware", "frozen"])
+    parser.add_argument("command", choices=["hardware", "frozen", "smoke"])
     parser.add_argument("--development", type=Path)
     parser.add_argument(
         "--output", type=Path, default=Path("reports/model_development/mylyn_pretrained")
@@ -567,7 +621,9 @@ if __name__ == "__main__":
     arguments.output.mkdir(parents=True, exist_ok=True)
     if arguments.command == "hardware":
         print(json.dumps(hardware_report(Path.cwd(), arguments.output), indent=2, default=str))
-    else:
+    elif arguments.command == "frozen":
         if not arguments.development:
             parser.error("--development is required")
         run_frozen_embeddings(arguments.development, arguments.output, arguments.cache)
+    else:
+        run_cpu_fine_tuning_smoke(arguments.output)

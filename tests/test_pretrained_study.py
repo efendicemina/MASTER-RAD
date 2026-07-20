@@ -12,6 +12,7 @@ from defect_classifier.pretrained_study import (
     EXPECTED_FOLD_HASH,
     LABELS,
     MacroF1EarlyStopping,
+    _fixed_metrics,
     class_weights_from_training,
     embedding_cache_fingerprint,
     focal_loss,
@@ -145,3 +146,15 @@ def test_persisted_example_redaction():
     text = redact("contact a@example.com at http://example.com/report")
     assert "example.com" not in text
     assert "[EMAIL]" in text and "[URL]" in text
+
+
+def test_fixed_label_metrics_keep_absent_classes():
+    metrics = _fixed_metrics(np.asarray(["normal"]), np.asarray(["normal"]))
+    assert metrics["macro_f1"] == pytest.approx(1 / 6)
+    assert metrics["f1_blocker"] == 0
+
+
+def test_no_pretrained_challenger_is_created_without_material_improvement():
+    root = Path(__file__).resolve().parents[1]
+    assert not (root / "configs" / "eclipse_training_mylyn_pretrained_challenger.yaml").exists()
+    assert (root / "docs" / "mylyn_pretrained_no_improvement.md").is_file()
