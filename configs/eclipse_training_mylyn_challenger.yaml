@@ -1,0 +1,95 @@
+dataset:
+  path: data/processed/eclipse_core/MYLYN.parquet
+  chunksize: 50000
+
+output:
+  root_dir: reports
+  experiments_dir: reports/experiments
+
+training:
+  enabled: false
+  controlled_pilot: true
+  purpose: development_selected_challenger
+
+held_out_test:
+  evaluation_allowed: false
+  requirement: explicit_researcher_approval_before_second_held_out_evaluation
+
+source_columns:
+  id: [issue_id]
+  summary: [summary]
+  description: [description]
+  severity: [severity]
+  creation_time: [creation_time]
+  product: [product]
+  component: [component]
+  dupe_of: [dupe_of]
+
+target_column: severity
+target_labels: [blocker, critical, major, normal, minor, trivial]
+label_exclusions: [enhancement, task, feature, unknown, n/a, none, ""]
+
+label_grouping:
+  enabled: false
+  groups: {}
+
+text_columns:
+  summary: summary
+  description: description
+
+cleaning:
+  lowercase: true
+  remove_html: true
+  replace_urls: true
+  replace_emails: true
+  remove_code_blocks: false
+  remove_stack_traces: false
+  normalize_unicode: true
+  normalize_whitespace: true
+
+duplicate_policy:
+  exact_text: keep_chronologically_earliest
+  linked_duplicates: purge_across_all_temporal_boundaries
+
+split:
+  strategy: chronological
+  train_fraction: 0.8
+  random_state: 42
+  allow_missing_dates_fallback: false
+
+features:
+  representation: summary_description
+  analyzer: word
+  ngram_range: [1, 2]
+  min_df: 2
+  max_df: 0.98
+  max_features: 50000
+  sublinear_tf: true
+  lowercase: false
+
+models:
+  enabled: [LogisticRegression]
+  search_method: grid
+  n_jobs: 1
+  class_weight: balanced
+  random_state: 42
+  param_grids:
+    LogisticRegression:
+      clf__C: [1.0]
+      tfidf__ngram_range: [[1, 2]]
+
+cv:
+  strategy: time_series
+  n_splits: 3
+  shuffle: false
+  random_state: 42
+
+primary_metric: macro_f1
+
+bootstrap:
+  n_resamples: 1000
+  confidence_level: 0.95
+  random_state: 42
+
+resources:
+  minimum_available_memory_gb: 2.0

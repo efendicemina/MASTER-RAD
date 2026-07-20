@@ -124,6 +124,19 @@ python -m defect_classifier evaluate --config configs/baseline.yaml
 Held-out test evaluation is one-shot. If reporting is interrupted after predictions are
 persisted, the evaluator resumes only the missing reports and does not repeat inference.
 
+Run the controlled MYLYN development-only study (never the held-out test):
+
+```powershell
+python -m defect_classifier.development_study `
+  --development reports\experiments\<approved_pilot_id>\tables\development_split.csv `
+  --parquet data\processed\eclipse_core\MYLYN.parquet `
+  --output reports\model_development\mylyn
+```
+
+The predeclared rule is in `docs/mylyn_model_selection_protocol.md`. The generated
+challenger configuration remains disabled until a researcher explicitly authorizes any
+new held-out evaluation.
+
 Run the full pipeline:
 
 ```powershell
