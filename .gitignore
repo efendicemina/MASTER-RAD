@@ -3,6 +3,7 @@
 .git_corrupt_*/
 __pycache__/
 .pytest_cache/
+.test_tmp_*/
 .ruff_cache/
 .mypy_cache/
 *.pyc

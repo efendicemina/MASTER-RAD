@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import psutil
 import pyarrow.parquet as pq
-from scipy.stats import friedmanchisquare, pearsonr
+from scipy.stats import friedmanchisquare, pearsonr, wilcoxon
 from sklearn.base import clone
 
 from .config import load_config
@@ -460,17 +460,15 @@ def aggregate_results(root: Path, output_root: Path, mylyn_experiment: Path) -> 
         dist = pd.read_csv(experiment / "tables" / "test_class_distribution.csv")
         dist["project"] = project
         distributions.extend(dist.to_dict("records"))
-        matrix = pd.read_csv(
-            experiment / "tables" / "confusion_matrix_LogisticRegression.csv", index_col=0
-        )
-        for true_label in LABELS:
-            for predicted_label in LABELS:
+        matrix = pd.read_csv(experiment / "tables" / "confusion_matrix_LogisticRegression.csv")
+        for true_index, true_label in enumerate(LABELS):
+            for predicted_index, predicted_label in enumerate(LABELS):
                 confusions.append(
                     {
                         "project": project,
                         "true_label": true_label,
                         "predicted_label": predicted_label,
-                        "count": int(matrix.loc[true_label, predicted_label]),
+                        "count": int(matrix.iloc[true_index, predicted_index]),
                     }
                 )
     mylyn_meta = json.loads((mylyn_experiment / "metadata.json").read_text())
@@ -525,6 +523,7 @@ def aggregate_results(root: Path, output_root: Path, mylyn_experiment: Path) -> 
     ]
     statistic, p_value = friedmanchisquare(*(pivot[model] for model in MODELS))
     pairwise = []
+    posthoc = []
     for left_index, left in enumerate(MODELS):
         for right in MODELS[left_index + 1 :]:
             difference = pivot[left] - pivot[right]
@@ -539,21 +538,94 @@ def aggregate_results(root: Path, output_root: Path, mylyn_experiment: Path) -> 
                     "wins_b": int((difference < 0).sum()),
                 }
             )
+            if p_value < 0.05:
+                test = wilcoxon(pivot[left], pivot[right], alternative="two-sided")
+                posthoc.append(
+                    {
+                        "model_a": left,
+                        "model_b": right,
+                        "statistic": test.statistic,
+                        "raw_p_value": test.pvalue,
+                    }
+                )
+    if posthoc:
+        order = sorted(range(len(posthoc)), key=lambda index: posthoc[index]["raw_p_value"])
+        running = 0.0
+        for rank, index in enumerate(order):
+            adjusted = min(1.0, posthoc[index]["raw_p_value"] * (len(posthoc) - rank))
+            running = max(running, adjusted)
+            posthoc[index]["holm_adjusted_p_value"] = running
+            posthoc[index]["reject_0_05"] = running < 0.05
     write_json(
         output_root / "friedman_test.json",
         {
             "projects": len(pivot),
             "statistic": statistic,
             "p_value": p_value,
-            "posthoc_performed": False,
+            "posthoc_performed": bool(posthoc),
+            "posthoc_method": "paired Wilcoxon with Holm correction",
         },
     )
     write_csv(output_root / "pairwise_effect_sizes.csv", pd.DataFrame(pairwise))
+    write_csv(output_root / "posthoc_wilcoxon_holm.csv", pd.DataFrame(posthoc))
     values = project_frame.test_macro_f1
     without_tptp = project_frame[project_frame.project != "TPTP"].test_macro_f1
     correlation = pearsonr(project_frame.development_size, values)
     per_class_summary = class_frame.groupby("severity").f1.agg(["mean", "median"]).reset_index()
     write_csv(output_root / "per_class_summary.csv", per_class_summary)
+    minority_rows = []
+    for label in ["blocker", "critical", "minor", "trivial"]:
+        subset = class_frame[class_frame.severity == label]
+        association = pearsonr(subset.support, subset.f1)
+        minority_rows.append(
+            {
+                "severity": label,
+                "mean_recall": subset.recall.mean(),
+                "mean_f1": subset.f1.mean(),
+                "median_f1": subset.f1.median(),
+                "support_f1_pearson_r": association.statistic,
+                "support_f1_p_value": association.pvalue,
+                "zero_recall_projects": ",".join(subset.loc[subset.recall == 0, "project"]),
+                "near_zero_recall_projects": ",".join(subset.loc[subset.recall < 0.05, "project"]),
+            }
+        )
+    write_csv(output_root / "minority_class_summary.csv", pd.DataFrame(minority_rows))
+    normal_confusions = pd.DataFrame(confusions)
+    normal_confusions = normal_confusions[
+        (normal_confusions.predicted_label == "normal") & (normal_confusions.true_label != "normal")
+    ]
+    normal_confusions = (
+        normal_confusions.groupby("true_label")["count"].sum().sort_values(ascending=False)
+    )
+    feature_sets = {}
+    for project in PROJECT_ORDER:
+        experiment = _latest_completed(output_root, project)
+        features = pd.read_csv(
+            experiment / "tables" / "influential_features_LogisticRegression.csv"
+        )
+        feature_sets[project] = set(features.feature)
+    jaccards = []
+    for left_index, left in enumerate(PROJECT_ORDER):
+        for right in PROJECT_ORDER[left_index + 1 :]:
+            union = feature_sets[left] | feature_sets[right]
+            jaccards.append(len(feature_sets[left] & feature_sets[right]) / max(len(union), 1))
+    minority_lines = [
+        "# Temporal and minority-class summary",
+        "",
+        "Support-to-F1 associations are exploratory across nine projects.",
+        "Mean pairwise Jaccard overlap of project influential-feature sets: "
+        f"{np.mean(jaccards):.4f}.",
+        "Classes most often confused into normal: "
+        + ", ".join(f"{label} ({count})" for label, count in normal_confusions.items()),
+        "",
+        "Exact test-period date ranges were not reconstructed after completion because that "
+        "would require reopening protected held-out partitions. Temporal CV remains recorded "
+        "inside every experiment.",
+        "Product and Component were never used as predictive inputs.",
+    ]
+    (output_root / "temporal_minority_summary.md").write_text(
+        "\n".join(minority_lines), encoding="utf-8"
+    )
     lines = [
         "# Frozen within-project Eclipse results",
         "",
@@ -564,7 +636,7 @@ def aggregate_results(root: Path, output_root: Path, mylyn_experiment: Path) -> 
         f"Exploratory Pearson correlation between development size and macro F1: "
         f"r={correlation.statistic:.4f}, p={correlation.pvalue:.4g}.",
         f"Friedman test across eight new projects and four models: chi-square={statistic:.4f}, "
-        f"p={p_value:.4g}. No post-hoc significance tests were performed.",
+        f"p={p_value:.4g}. Paired Wilcoxon post-hoc tests use Holm correction.",
         "",
         "MYLYN is the immutable initial result and is excluded from the four-model Friedman block.",
         "Five MYLYN conflicting exact-text groups and minority-label review remain pending.",
