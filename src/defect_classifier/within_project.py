@@ -131,7 +131,7 @@ def preflight_project(project: str, root: Path) -> tuple[dict[str, Any], Any, An
                     }
                 )
     memory = psutil.virtual_memory()
-    disk = psutil.disk_usage(root)
+    disk = psutil.disk_usage(str(root))
     if disk.free < 80 * 2**30:
         raise OSError(f"{project}: free disk below 80 GiB")
     if memory.available < 2 * 2**30:
@@ -348,7 +348,7 @@ def run_project(project: str, root: Path, output_root: Path) -> Path:
             "runtime_resources": {
                 "process_rss_bytes": psutil.Process().memory_info().rss,
                 "available_memory_gb": psutil.virtual_memory().available / 2**30,
-                "free_disk_gb": psutil.disk_usage(root).free / 2**30,
+                "free_disk_gb": psutil.disk_usage(str(root)).free / 2**30,
             },
             "artifact_count": len(list(experiment.rglob("*.*"))),
         }
