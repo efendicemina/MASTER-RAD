@@ -1,0 +1,10 @@
+project,rows,min_creation_time,max_creation_time,classes
+BIRT,23308,2005-01-07 20:28:58+00:00,2022-03-24 07:45:52+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+CDT,22371,2002-01-14 05:08:01+00:00,2022-11-25 14:42:18+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+Equinox,14559,2001-10-11 02:35:18+00:00,2022-05-20 08:05:08+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+JDT,63266,2001-10-11 02:14:41+00:00,2022-04-12 11:36:23+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+MYLYN,13993,2004-04-15 13:51:46+00:00,2022-11-10 13:33:58+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+Papyrus,13253,2008-10-06 12:39:04+00:00,2024-06-10 07:30:28+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+PDE,17639,2001-10-11 01:39:24+00:00,2022-11-07 11:57:16+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+Platform,122496,2001-10-11 01:34:46+00:00,2022-04-12 18:09:31+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"
+TPTP,10579,2003-08-07 21:02:12+00:00,2016-03-28 15:31:42+00:00,"blocker,critical,enhancement,major,minor,normal,trivial"

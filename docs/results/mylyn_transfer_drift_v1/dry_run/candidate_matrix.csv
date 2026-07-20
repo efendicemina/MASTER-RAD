@@ -1,0 +1,3 @@
+candidate_id,input_variant,feature_variant,model
+R0_logreg,summary_description,word_1_2,LogisticRegression
+R1_logreg,summary_description,word_char,LogisticRegression
