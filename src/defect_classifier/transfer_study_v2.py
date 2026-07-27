@@ -2248,6 +2248,7 @@ def real_run(
     command: str,
     resume: bool = False,
     minimum_available_memory_gb: float = MINIMUM_AVAILABLE_MEMORY_GB,
+    protocol_commit: str | None = None,
 ) -> dict[str, Any]:
     """Apply the resource gate before dispatching the full production engine."""
     available = psutil.virtual_memory().available / 2**30
@@ -2261,9 +2262,9 @@ def real_run(
         disk_anchor = disk_anchor.parent
     disk_free = shutil.disk_usage(disk_anchor).free / 2**30
     if disk_free < 10.0:
-        raise RuntimeError(
-            f"RUN_BLOCKED_LOW_DISK: {disk_free:.3f} GiB free; 10.000 required"
-        )
+        raise RuntimeError(f"RUN_BLOCKED_LOW_DISK: {disk_free:.3f} GiB free; 10.000 required")
+    if not protocol_commit or not re.fullmatch(r"[0-9a-f]{40}", protocol_commit):
+        raise ValueError("Real run requires the pushed 40-character protocol commit SHA")
     dry = dry_run(
         target_path,
         processed_root,
@@ -2283,7 +2284,12 @@ def real_run(
         EngineOptions(minimum_available_memory_gb=minimum_available_memory_gb, resume=resume),
     )
     dry.manifest.update(
-        {"dry_run": False, "models_fitted": True, "completed_stages": list("ABCDE")}
+        {
+            "dry_run": False,
+            "models_fitted": True,
+            "completed_stages": list("ABCDE"),
+            "protocol_commit": protocol_commit,
+        }
     )
     atomic_json(audit_output / "study_manifest.json", dry.manifest)
     return result
@@ -2305,6 +2311,7 @@ def main() -> None:
     parser.add_argument(
         "--minimum-available-memory-gb", type=float, default=MINIMUM_AVAILABLE_MEMORY_GB
     )
+    parser.add_argument("--protocol-commit")
     args = parser.parse_args()
     command_tokens = [token for token in sys.argv[1:] if token != "--resume"]
     command = "python -m defect_classifier.transfer_study_v2 " + " ".join(command_tokens)
@@ -2336,6 +2343,7 @@ def main() -> None:
                 command,
                 args.resume,
                 args.minimum_available_memory_gb,
+                args.protocol_commit,
             ),
             indent=2,
         )
