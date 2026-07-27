@@ -56,6 +56,13 @@ def test_candidate_matrix_is_fully_expanded() -> None:
     assert not matrix.candidate_id.duplicated().any()
 
 
+def test_all_frozen_model_parameters_are_accepted_by_estimators() -> None:
+    for task in study.TASKS:
+        for candidate in study.base_model_grid(task):
+            model = study._make_model(candidate)
+            assert getattr(model, "class_weight", None) in {None, "balanced"}
+
+
 def test_nbsvm_ratio_uses_only_supplied_training_rows() -> None:
     matrix = sparse.csr_matrix([[1, 0], [0, 1]], dtype=float)
     ratio = study.nbsvm_ratio(matrix, np.array(["yes", "no"]), "yes")

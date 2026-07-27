@@ -675,10 +675,11 @@ def load_sources(root: Path) -> pd.DataFrame:
 
 def _make_model(candidate: dict[str, Any]):
     model = candidate["model"]
+    class_weight = None if pd.isna(candidate.get("class_weight")) else candidate["class_weight"]
     if model in {"LogisticRegression", "NBSVM"}:
         return LogisticRegression(
             C=float(candidate["C"]),
-            class_weight=candidate["class_weight"],
+            class_weight=class_weight,
             max_iter=2000,
             solver="lbfgs",
             random_state=SEED,
@@ -686,7 +687,7 @@ def _make_model(candidate: dict[str, Any]):
     if model == "LinearSVC":
         return LinearSVC(
             C=float(candidate["C"]),
-            class_weight=candidate["class_weight"],
+            class_weight=class_weight,
             random_state=SEED,
         )
     if model == "ComplementNB":
