@@ -1,0 +1,10 @@
+study: mylyn_transfer_drift_threshold_v2
+seed: 42
+minimum_available_memory_gb: 4.0
+development_sha256: 8dab3df33aa8bbc64afa844d5cddabb6fa45899dc7064f38cee292d326aa05e5
+development_rows: 7664
+outer_fold_fingerprint: 5c484bdee4fb24245c060df2d7fee5091184bd6f6a1594d900ee962b7e908903
+source_projects: [BIRT, CDT, Equinox, JDT, Papyrus, PDE, Platform, TPTP]
+held_out_test_allowed: false
+batch_size: 4096
+n_jobs: 1

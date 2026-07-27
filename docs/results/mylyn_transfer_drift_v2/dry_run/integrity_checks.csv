@@ -1,0 +1,11 @@
+check,passed
+development_sha,True
+development_rows,True
+outer_fingerprint,True
+source_count_8,True
+target_is_mylyn,True
+test_accessed_no,True
+cutoff_violations_zero,True
+overlap_zero,True
+candidate_grid_nonempty,True
+models_not_fitted,True

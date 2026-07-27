@@ -1,0 +1,85 @@
+{
+  "candidate_matrix_checksum": "c57a0658a28c6d9e2d5d7a8e65f9b840557baa4701b0777fee14d46c9a40f7f8",
+  "cli_command": "python -m defect_classifier.transfer_study_v2 dry-run --target-development reports\\experiments\\eclipse_training_mylyn_pilot_20260719T174210.314891+0000\\tables\\development_split.csv --processed-root data\\processed\\eclipse_core --audit-output reports\\data_audit\\mylyn_transfer_drift_v2\\20260727T210500_dry_run --model-output reports\\model_development\\mylyn_transfer_drift_v2\\20260727T210500_dry_run --protocol docs\\mylyn_transfer_drift_threshold_protocol_v2.md",
+  "completed_stages": [],
+  "development_rows": 7664,
+  "development_sha256": "8dab3df33aa8bbc64afa844d5cddabb6fa45899dc7064f38cee292d326aa05e5",
+  "dry_run": true,
+  "held_out_test_accessed": false,
+  "inner_fold_fingerprints": [
+    "78d85b7fe174e07b2a15d11384fbbc38abfe42aed12e8ca34fb04538de17d477",
+    "c99473dfbc4d225f5e0c54f4546821caa07797e1e5ebf677511c69950a03cdba",
+    "16b33b196b93550eca31111a5c71e571d96d98f36ab1db8dc3612553742e7033",
+    "1ecf95af14e23ffdbba4e2ff37989f8b95242a1219266b15971c8ee14911516e",
+    "0683890b167b65e46102b77c193d5a0a035fbdad64ef30db35dbf941645bb240",
+    "3defe01dc62715285f7cc1db28535585a3b2f475affc9065c3f0d71b8317191d"
+  ],
+  "model_grid": "v2_frozen",
+  "models_fitted": false,
+  "outer_fold_fingerprint": "5c484bdee4fb24245c060df2d7fee5091184bd6f6a1594d900ee962b7e908903",
+  "packages": {
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "psutil": "7.2.2",
+    "pyarrow": "25.0.0",
+    "scikit-learn": "1.9.0",
+    "scipy": "1.18.0"
+  },
+  "preprocessing": {
+    "representations": [
+      "R0",
+      "R1",
+      "R2"
+    ]
+  },
+  "protocol_content_sha256": "2d8f39a6b8d7544fe4ff967e195e2831f51146d48d303d90a33c512d21e5e390",
+  "schema_version": "2.0",
+  "seed": 42,
+  "source_hashes": {
+    "BIRT": "a0e2c21c9095bcf250cc5d389177d2e6058b39cd589199316d235b00b532fa76",
+    "CDT": "00cbe579b9a1a4606db80933154cb7a2498fc8931310805f033cb4558d725004",
+    "Equinox": "f0ee1c9185c6edc119bae133fb64c81c3790559878f4f5279c12c189f337d5ba",
+    "JDT": "0c1b597e9be4fce63a22cdac137e2f1f1657f8d6512fec689dc7be2233340c61",
+    "PDE": "034ac8abccce6a5fcae49ad604faafd3f2f794c2d4dfd9a993430ef44e1d1808",
+    "Papyrus": "b82272d153d1edefa03a82268099f878a4f3e0f9f5a652dbbf259e5f7cc366f4",
+    "Platform": "21a82ca083594b286f226debf1bd98ad29063cef267d3809e6d160919d3bfdf1",
+    "TPTP": "7aceea71ca29e14e11ce4953203acc5e924a75154715e100566543070b70eca7"
+  },
+  "source_projects": [
+    "BIRT",
+    "CDT",
+    "Equinox",
+    "JDT",
+    "Papyrus",
+    "PDE",
+    "Platform",
+    "TPTP"
+  ],
+  "success_criteria": "protocol_v2",
+  "task_mappings": {
+    "s2": {
+      "blocker": "HIGH_IMPACT",
+      "critical": "HIGH_IMPACT",
+      "major": "HIGH_IMPACT",
+      "minor": "LOWER_IMPACT",
+      "normal": "LOWER_IMPACT",
+      "trivial": "LOWER_IMPACT"
+    },
+    "s3": {
+      "blocker": "HIGH",
+      "critical": "HIGH",
+      "major": "MEDIUM",
+      "minor": "LOW",
+      "normal": "MEDIUM",
+      "trivial": "LOW"
+    },
+    "s6": {
+      "blocker": "blocker",
+      "critical": "critical",
+      "major": "major",
+      "minor": "minor",
+      "normal": "normal",
+      "trivial": "trivial"
+    }
+  }
+}

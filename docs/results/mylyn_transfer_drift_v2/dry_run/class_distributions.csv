@@ -1,0 +1,12 @@
+task,target,rows
+s6,blocker,101
+s6,critical,171
+s6,major,632
+s6,minor,1043
+s6,normal,5262
+s6,trivial,455
+s3,HIGH,272
+s3,LOW,1498
+s3,MEDIUM,5894
+s2,HIGH_IMPACT,904
+s2,LOWER_IMPACT,6760

@@ -1,0 +1,25 @@
+........................................................................ [ 52%]
+................................................................         [100%]
+============================== warnings summary ===============================
+tests/test_cli.py::test_end_to_end_smoke_training
+tests/test_cli.py::test_end_to_end_smoke_training
+tests/test_cli.py::test_end_to_end_smoke_training
+tests/test_cli.py::test_end_to_end_smoke_training
+tests/test_cli.py::test_end_to_end_smoke_training
+tests/test_cli.py::test_end_to_end_smoke_training
+  C:\Users\EminaEfendic\Desktop\MASTER RAD\.venv\Lib\site-packages\joblib\numpy_pickle.py:207: DeprecationWarning: Setting the shape on a NumPy array has been deprecated in NumPy 2.5.
+  As an alternative, you can create a new view using np.reshape (with copy=False if needed).
+    array.shape = self.shape
+
+tests/test_evaluation.py::test_macro_f1_keeps_absent_expected_class
+tests/test_hierarchical_study.py::test_fixed_six_label_metrics_when_predictions_absent
+tests/test_pretrained_study.py::test_fixed_label_metrics_keep_absent_classes
+  C:\Users\EminaEfendic\Desktop\MASTER RAD\.venv\Lib\site-packages\sklearn\metrics\_classification.py:614: UserWarning: A single label was found in 'y_true' and 'y_pred'. For the confusion matrix to have the correct shape, use the 'labels' parameter to pass all known labels.
+    warnings.warn(
+
+.venv\Lib\site-packages\_pytest\cacheprovider.py:469
+  C:\Users\EminaEfendic\Desktop\MASTER RAD\.venv\Lib\site-packages\_pytest\cacheprovider.py:469: PytestCacheWarning: could not create cache path C:\Users\EminaEfendic\Desktop\MASTER RAD\.pytest_cache\v\cache\nodeids: [WinError 5] Access is denied: 'C:\\Users\\EminaEfendic\\Desktop\\MASTER RAD\\.pytest_cache\\v\\cache'
+    config.cache.set("cache/nodeids", sorted(self.cached_nodeids))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+136 passed, 10 warnings in 138.18s (0:02:18)

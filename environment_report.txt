@@ -1,0 +1,12 @@
+Python: 3.12.10 (64-bit, MSC v.1943)
+OS/platform: Windows-11-10.0.26200-SP0
+Packages: numpy=2.5.1, pandas=3.0.3, pyarrow=25.0.0, psutil=7.2.2, scikit-learn=1.9.0, scipy=1.18.0, pytest=9.1.1, ruff=0.15.22
+Git branch: experiment/mylyn-transfer-drift-v2
+Git HEAD before protocol commit: cadf012c8221d1a4074a27ec4cb08a9fa664c7cf
+Seed: 42
+CPU logical: 12
+Memory total GiB: 15.329399108886719
+Memory available GiB: 5.631649017333984
+Disk free GiB: 194.2879295349121
+Date/time: 2026-07-27T20:21:06.659413+02:00
+Timezone: Europe/Sarajevo (CEST)

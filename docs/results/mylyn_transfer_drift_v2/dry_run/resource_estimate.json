@@ -1,0 +1,9 @@
+{
+  "available_memory_gb": 5.483837127685547,
+  "candidate_rows": 15162,
+  "disk_free_gb": 194.28849029541016,
+  "estimated_runtime_hours": 8.0,
+  "models_fitted": 0,
+  "real_run_allowed": true,
+  "required_memory_gb": 4.0
+}
