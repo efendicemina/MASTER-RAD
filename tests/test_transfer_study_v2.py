@@ -104,8 +104,90 @@ def test_threshold_selection_is_deterministic_and_constrained() -> None:
     first = study.select_s2_threshold(probabilities, truth)
     second = study.select_s2_threshold(probabilities, truth)
     assert first == second
+    assert first["threshold"] == pytest.approx(0.5)
     assert first["precision"] >= 0.30
     assert 0.05 <= first["threshold"] <= 0.95
+
+
+def test_infeasible_s2_candidate_is_recorded_while_feasible_candidate_continues(
+    monkeypatch,
+) -> None:
+    severities = ["blocker", "critical", "major", "normal", "minor", "trivial"] * 24
+    outer_train = pd.DataFrame(
+        {
+            "creation_time": pd.date_range(
+                "2020-01-01", periods=len(severities), freq="D", tz="UTC"
+            ),
+            "severity": severities,
+            "summary": [f"summary token{i % 11}" for i in range(len(severities))],
+            "description": [f"component failure{i % 7}" for i in range(len(severities))],
+        }
+    )
+    candidates = study._stage_a_candidates("s2", fixture=True)[:2]
+    original = study.select_s2_threshold
+    calls = 0
+
+    def first_infeasible(probabilities, truth):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise study.S2ThresholdInfeasible(
+                {
+                    "reason_code": "no_s2_threshold_meets_precision_constraint",
+                    "precision_constraint": 0.30,
+                    "best_precision": 0.25,
+                    "best_precision_threshold": 0.95,
+                    "best_precision_recall": 0.10,
+                    "predicted_positive_count": 4,
+                    "positive_class_count": 40,
+                    "negative_class_count": 80,
+                    "evaluated_threshold_count": 181,
+                }
+            )
+        return original(probabilities, truth)
+
+    monkeypatch.setattr(study, "select_s2_threshold", first_infeasible)
+    rows, oof = study._evaluate_stage_a_grid(outer_train, "s2", candidates)
+
+    assert [row["status"] for row in rows] == ["infeasible", "trained"]
+    assert rows[0]["infeasibility_reason"] == (
+        "no_s2_threshold_meets_precision_constraint"
+    )
+    assert list(oof) == [candidates[1]["candidate_id"]]
+    assert study._rank_stage(rows) == [rows[1]]
+
+
+def test_all_s2_candidates_infeasible_has_clear_terminal_error() -> None:
+    rows = [
+        {"candidate_id": "s2-A-0000", "status": "infeasible"},
+        {"candidate_id": "s2-A-0001", "status": "infeasible"},
+    ]
+    with pytest.raises(
+        RuntimeError,
+        match="All eligible S2 candidates are infeasible for outer fold 1 stage A",
+    ):
+        study._require_feasible_stage(rows, "s2", 1, "A")
+
+
+def test_infeasible_threshold_reports_deterministic_diagnostics() -> None:
+    probabilities = np.array([0.01, 0.02, 0.03, 0.04])
+    truth = np.array([False, False, False, True])
+    with pytest.raises(study.S2ThresholdInfeasible) as first:
+        study.select_s2_threshold(probabilities, truth)
+    with pytest.raises(study.S2ThresholdInfeasible) as second:
+        study.select_s2_threshold(probabilities, truth)
+    assert first.value.diagnostics == second.value.diagnostics
+    assert first.value.diagnostics == {
+        "reason_code": "no_s2_threshold_meets_precision_constraint",
+        "precision_constraint": 0.30,
+        "best_precision": 0.0,
+        "best_precision_threshold": 0.95,
+        "best_precision_recall": 0.0,
+        "predicted_positive_count": 0,
+        "positive_class_count": 1,
+        "negative_class_count": 3,
+        "evaluated_threshold_count": 181,
+    }
 
 
 def test_calibrator_exposes_probabilities() -> None:
@@ -152,6 +234,56 @@ def test_resume_locks_all_scientific_inputs() -> None:
         existing[key] = "changed"
         with pytest.raises(RuntimeError, match=key):
             study.validate_resume(existing, expected)
+
+
+def test_resume_preserves_completed_checkpoints_after_s2_infeasibility(
+    tmp_path: Path, monkeypatch
+) -> None:
+    audit = tmp_path / "audit"
+    model = tmp_path / "model"
+    audit.mkdir()
+    model.mkdir()
+    state = {
+        "inner_rows": [],
+        "selected_rows": [],
+        "fold_rows": [],
+        "oof_rows": [],
+        "stage_tables": {stage: [] for stage in "ABCDE"},
+        "completed": ["s3:1", "s6:1"],
+    }
+    state_path = audit / "engine_state.json"
+    state_path.write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+    before = state_path.read_bytes()
+    target = pd.DataFrame(
+        {
+            "creation_time": pd.to_datetime(["2020-01-01", "2020-01-02"], utc=True),
+            "severity": ["normal", "major"],
+            "summary": ["a", "b"],
+            "description": ["a", "b"],
+        }
+    )
+    fold = study.FrozenFold(1, (0,), (1,))
+    attempted = []
+    monkeypatch.setattr(study, "freeze_temporal_folds", lambda _: (fold,))
+    monkeypatch.setattr(study, "_baseline_reproduction", lambda *_args, **_kwargs: pd.DataFrame())
+
+    def fail_s2(_outer_train, task, _candidates):
+        attempted.append(task)
+        raise RuntimeError("All eligible S2 candidates are infeasible for outer fold 1 stage A")
+
+    monkeypatch.setattr(study, "_evaluate_stage_a_grid", fail_s2)
+    with pytest.raises(RuntimeError, match="All eligible S2 candidates"):
+        study.execute_production_study(
+            target,
+            pd.DataFrame(),
+            audit,
+            model,
+            study.EngineOptions(fixture=True, minimum_available_memory_gb=0.0, resume=True),
+        )
+
+    assert attempted == ["s2"]
+    assert state_path.read_bytes() == before
+    assert not (audit / "checkpoint_s2_fold_1.json").exists()
 
 
 def test_atomic_write_never_presents_partial_final(tmp_path: Path, monkeypatch) -> None:

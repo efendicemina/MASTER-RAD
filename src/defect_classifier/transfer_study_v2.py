@@ -552,7 +552,23 @@ def fit_calibrator(scores: np.ndarray, labels: np.ndarray) -> LogisticRegression
     return calibrator
 
 
-def select_s2_threshold(probabilities: np.ndarray, truth: np.ndarray) -> dict[str, float]:
+S2_PRECISION_CONSTRAINT = 0.30
+
+
+class S2ThresholdInfeasible(RuntimeError):
+    """Raised when one S2 configuration has no threshold satisfying the frozen constraint."""
+
+    def __init__(self, diagnostics: dict[str, Any]) -> None:
+        self.diagnostics = diagnostics
+        super().__init__(
+            "No S2 threshold satisfies precision constraint "
+            f">={diagnostics['precision_constraint']:.2f}; "
+            f"best_precision={diagnostics['best_precision']:.6f} "
+            f"at threshold={diagnostics['best_precision_threshold']:.3f}"
+        )
+
+
+def select_s2_threshold(probabilities: np.ndarray, truth: np.ndarray) -> dict[str, Any]:
     rows = []
     for threshold in np.arange(0.05, 0.9501, 0.005):
         predicted = probabilities >= threshold
@@ -568,12 +584,30 @@ def select_s2_threshold(probabilities: np.ndarray, truth: np.ndarray) -> dict[st
                 "f1": f1[1],
                 "f2": fbeta_score(truth, predicted, beta=2, zero_division=0),
                 "macro_f1": macro,
+                "predicted_positive_count": int(predicted.sum()),
             }
         )
-    eligible = pd.DataFrame(rows)
-    eligible = eligible[eligible.precision >= 0.30]
+    evaluated = pd.DataFrame(rows)
+    eligible = evaluated[evaluated.precision >= S2_PRECISION_CONSTRAINT].copy()
     if eligible.empty:
-        raise RuntimeError("No S2 threshold satisfies precision constraint")
+        best = evaluated.sort_values(
+            ["precision", "recall", "f2", "macro_f1", "threshold"],
+            ascending=[False, False, False, False, False],
+            kind="stable",
+        ).iloc[0]
+        raise S2ThresholdInfeasible(
+            {
+                "reason_code": "no_s2_threshold_meets_precision_constraint",
+                "precision_constraint": S2_PRECISION_CONSTRAINT,
+                "best_precision": float(best.precision),
+                "best_precision_threshold": float(best.threshold),
+                "best_precision_recall": float(best.recall),
+                "predicted_positive_count": int(best.predicted_positive_count),
+                "positive_class_count": int(np.asarray(truth, dtype=bool).sum()),
+                "negative_class_count": int((~np.asarray(truth, dtype=bool)).sum()),
+                "evaluated_threshold_count": len(evaluated),
+            }
+        )
     eligible["distance_to_half"] = (eligible.threshold - 0.5).abs()
     return (
         eligible.sort_values(
@@ -1211,7 +1245,7 @@ def _stage_a_candidates(task: str, fixture: bool) -> list[dict[str, Any]]:
 
 def _rank_stage(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
-        rows,
+        (row for row in rows if row.get("status") != "infeasible"),
         key=lambda row: (
             -row["macro_f1"],
             -row["minimum_class_recall"],
@@ -1222,6 +1256,18 @@ def _rank_stage(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             row["candidate_id"],
         ),
     )
+
+
+def _require_feasible_stage(
+    rows: list[dict[str, Any]], task: str, outer_fold: int, stage: str
+) -> list[dict[str, Any]]:
+    ranked = _rank_stage(rows)
+    if not ranked:
+        raise RuntimeError(
+            f"All eligible {task.upper()} candidates are infeasible for "
+            f"outer fold {outer_fold} stage {stage}"
+        )
+    return ranked
 
 
 def _inner_stage_row(
@@ -1320,7 +1366,29 @@ def _evaluate_stage_a_grid(
             truth_binary = combined.truth.to_numpy() == "HIGH_IMPACT"
             calibrator = fit_calibrator(raw, truth_binary)
             probability = calibrator.predict_proba(raw.reshape(-1, 1))[:, 1]
-            selected = select_s2_threshold(probability, truth_binary)
+            try:
+                selected = select_s2_threshold(probability, truth_binary)
+            except S2ThresholdInfeasible as error:
+                results.append(
+                    {
+                        **candidate,
+                        "stage": "A",
+                        "source_weight": 0.0,
+                        "recency": "all_history",
+                        "domain": "plain",
+                        "macro_f1": np.nan,
+                        "minimum_class_recall": np.nan,
+                        "fold_macro_f1_sd": np.nan,
+                        "feature_count": int(max(row["feature_count"] for row in rows)),
+                        "purge_overlap_after": int(sum(row["overlap_after"] for row in rows)),
+                        "threshold": np.nan,
+                        "runtime_seconds": float(sum(row["runtime_seconds"] for row in rows)),
+                        "status": "infeasible",
+                        "infeasibility_reason": error.diagnostics["reason_code"],
+                        **error.diagnostics,
+                    }
+                )
+                continue
             threshold = selected["threshold"]
             combined["predicted"] = np.where(
                 probability >= threshold, "HIGH_IMPACT", "LOWER_IMPACT"
@@ -1408,7 +1476,7 @@ def execute_production_study(
             evaluated, oof_by_id = _evaluate_stage_a_grid(
                 outer_train, task, _stage_a_candidates(task, options.fixture)
             )
-            top = _rank_stage(evaluated)[:2]
+            top = _require_feasible_stage(evaluated, task, outer.fold, "A")[:2]
             stage_tables["A"].extend(evaluated)
             stage_b = []
             for candidate in top:
