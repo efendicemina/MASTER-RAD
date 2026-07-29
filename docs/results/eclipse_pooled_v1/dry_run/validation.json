@@ -1,0 +1,12 @@
+{
+  "checks": {
+    "candidate_checksum": true,
+    "partition_audit": true,
+    "privacy_safe_outputs": true,
+    "projects_9": true,
+    "protocol_commit": true,
+    "protocol_hash": true,
+    "test_not_accessed": true
+  },
+  "status": "VALIDATION_PASS"
+}

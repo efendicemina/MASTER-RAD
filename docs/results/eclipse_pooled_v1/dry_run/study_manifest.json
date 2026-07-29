@@ -1,0 +1,78 @@
+{
+  "candidate_checksum": "c3cc83a29b481c53e3c330e9f2bdf880fa4d96381ccf30fcba355bdf100ec784",
+  "canonical_command": "python -m defect_classifier.pooled_study_v1 dry-run --processed-root data\\processed\\eclipse_core --mylyn-development reports\\experiments\\eclipse_training_mylyn_pilot_20260719T174210.314891+0000\\tables\\development_split.csv --audit-output reports\\data_audit\\eclipse_pooled_v1\\20260729T_preparation_final_dry_run --model-output reports\\model_development\\eclipse_pooled_v1\\20260729T_preparation_final_dry_run --protocol docs\\eclipse_pooled_protocol_v1.md --protocol-commit 428af8aa61ef490d50c7a5e1eb1e47f38999cf4c --rows-per-project 300",
+  "completed_stages": [
+    "TIMING_PILOT"
+  ],
+  "development_fingerprint": "cde41dd37386b38f6d3009ff42bff9c063d6d140da36bf781faefe34c388c01b",
+  "development_rows": 165998,
+  "fit_budget_per_task": 60,
+  "fit_budget_total": 180,
+  "fold_fingerprint": "727b2af6b8451adee768bc60fb6704e7459b09911b8d01099dc6df96d5c6b3bc",
+  "held_out_test_accessed": false,
+  "input_hashes": {
+    "BIRT": "a0e2c21c9095bcf250cc5d389177d2e6058b39cd589199316d235b00b532fa76",
+    "CDT": "00cbe579b9a1a4606db80933154cb7a2498fc8931310805f033cb4558d725004",
+    "Equinox": "f0ee1c9185c6edc119bae133fb64c81c3790559878f4f5279c12c189f337d5ba",
+    "JDT": "0c1b597e9be4fce63a22cdac137e2f1f1657f8d6512fec689dc7be2233340c61",
+    "MYLYN": "8dab3df33aa8bbc64afa844d5cddabb6fa45899dc7064f38cee292d326aa05e5",
+    "PDE": "034ac8abccce6a5fcae49ad604faafd3f2f794c2d4dfd9a993430ef44e1d1808",
+    "Papyrus": "b82272d153d1edefa03a82268099f878a4f3e0f9f5a652dbbf259e5f7cc366f4",
+    "Platform": "21a82ca083594b286f226debf1bd98ad29063cef267d3809e6d160919d3bfdf1",
+    "TPTP": "7aceea71ca29e14e11ce4953203acc5e924a75154715e100566543070b70eca7"
+  },
+  "locked_test_fingerprint": "557c87f57ecd30e131c3d467d2ec0de0e044c69dfeccd8f7d256c07d5907e8aa",
+  "locked_test_rows": 39999,
+  "mode": "dry-run",
+  "models_fitted": true,
+  "packages": {
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "psutil": "7.2.2",
+    "pyarrow": "25.0.0",
+    "scikit-learn": "1.9.0",
+    "scipy": "1.18.0"
+  },
+  "projects": [
+    "BIRT",
+    "CDT",
+    "Equinox",
+    "JDT",
+    "MYLYN",
+    "PDE",
+    "Papyrus",
+    "Platform",
+    "TPTP"
+  ],
+  "protocol_commit": "428af8aa61ef490d50c7a5e1eb1e47f38999cf4c",
+  "protocol_sha256": "159f9c7d54a49a9cb354214708e67adbbbd4f4b987a7050c4c263e2fb0ad2400",
+  "purged_test_rows": 1504,
+  "schema_version": "1.0",
+  "seed": 42,
+  "task_mappings": {
+    "s2": {
+      "blocker": "HIGH_IMPACT",
+      "critical": "HIGH_IMPACT",
+      "major": "HIGH_IMPACT",
+      "minor": "LOWER_IMPACT",
+      "normal": "LOWER_IMPACT",
+      "trivial": "LOWER_IMPACT"
+    },
+    "s3": {
+      "blocker": "HIGH",
+      "critical": "HIGH",
+      "major": "MEDIUM",
+      "minor": "LOW",
+      "normal": "MEDIUM",
+      "trivial": "LOW"
+    },
+    "s6": {
+      "blocker": "blocker",
+      "critical": "critical",
+      "major": "major",
+      "minor": "minor",
+      "normal": "normal",
+      "trivial": "trivial"
+    }
+  }
+}

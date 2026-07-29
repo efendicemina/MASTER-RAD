@@ -1,0 +1,43 @@
+experiment:
+  name: eclipse_pooled_v1
+  seed: 42
+  protocol: docs/eclipse_pooled_protocol_v1.md
+  protocol_commit: 428af8aa61ef490d50c7a5e1eb1e47f38999cf4c
+  full_real_run_enabled: false
+  locked_test_evaluation_enabled: false
+
+inputs:
+  processed_root: data/processed/eclipse_core
+  mylyn_development: reports/experiments/eclipse_training_mylyn_pilot_20260719T174210.314891+0000/tables/development_split.csv
+  projects: [BIRT, CDT, Equinox, JDT, MYLYN, PDE, Papyrus, Platform, TPTP]
+
+partition:
+  preserve_existing_latest_fraction: 0.20
+  pooled_development_fraction: 0.80
+  duplicate_component_purge: true
+  stable_order: [creation_time, row_key]
+
+search:
+  stage_0_fits_per_task: 6
+  stage_1_candidates_per_task: 36
+  stage_1_rows_per_project: 4000
+  stage_1_pruning_margin: 0.03
+  stage_2_candidates_per_task: 6
+  stage_2_folds: 3
+  total_development_fits_per_task: 60
+  total_development_fits: 180
+  representations: [word, char, word_char]
+  models: [LinearSVC, LogisticRegression]
+  class_weights: [none, balanced]
+  project_weights: [none, inverse_sqrt]
+
+metrics:
+  primary: macro_f1
+  required: [accuracy, weighted_f1, balanced_accuracy, per_class, per_project]
+  bootstrap_resamples: 2000
+
+s2:
+  precision_constraint: 0.30
+  threshold_minimum: 0.05
+  threshold_maximum: 0.95
+  threshold_step: 0.005

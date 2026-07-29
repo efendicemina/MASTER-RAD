@@ -1,0 +1,10 @@
+{
+  "estimated_disk_bytes": 250000000,
+  "estimated_full_runtime_seconds": 24026.405993470933,
+  "estimated_peak_ram_bytes": 8000000000,
+  "pilot_fits": 3,
+  "pilot_rows": 2700,
+  "pilot_rss_delta_bytes": 0,
+  "pilot_seconds": 27.533229300024686,
+  "seconds_per_fit": 9.177743100008229
+}

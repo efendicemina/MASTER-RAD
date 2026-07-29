@@ -1,0 +1,10 @@
+project,available_rows,eligible_available_rows,allowed_legacy_development_rows,pooled_development_rows,pooled_locked_test_rows,minimum_creation_time,maximum_creation_time,missing_summary,missing_description,exact_duplicate_rows,known_linked_group_rows,reservation
+BIRT,23308,21132,16905,13524,3312,2005-01-07 20:28:58+00:00,2009-06-02 05:47:07+00:00,0,63,145,2328,latest 20% eligible chronological rows excluded
+CDT,22371,19705,15764,12611,3045,2002-01-14 05:08:01+00:00,2014-06-29 13:45:27+00:00,0,105,82,2110,latest 20% eligible chronological rows excluded
+Equinox,14559,13123,10498,8398,2031,2001-10-11 02:35:18+00:00,2013-03-15 08:49:49+00:00,0,40,28,1943,latest 20% eligible chronological rows excluded
+JDT,63266,53076,42460,33968,8021,2001-10-11 02:14:42+00:00,2014-04-30 17:19:47+00:00,2,293,174,9743,latest 20% eligible chronological rows excluded
+MYLYN,13993,9673,7664,6131,1514,2005-06-10 17:41:17+00:00,2012-08-09 00:47:54+00:00,0,25,0,1264,approved MYLYN development only
+PDE,17639,15593,12474,9979,2425,2001-10-11 01:39:24+00:00,2012-10-23 20:43:44+00:00,0,70,65,2268,latest 20% eligible chronological rows excluded
+Papyrus,13253,10910,8728,6982,1734,2008-10-06 12:39:04+00:00,2017-08-31 10:13:11+00:00,0,352,20,593,latest 20% eligible chronological rows excluded
+Platform,122496,106803,85442,68353,16459,2001-10-11 01:34:46+00:00,2013-05-24 11:08:19+00:00,1,793,421,19675,latest 20% eligible chronological rows excluded
+TPTP,10579,9458,7566,6052,1458,2003-11-05 14:18:46+00:00,2008-03-14 10:35:38+00:00,0,108,137,1030,latest 20% eligible chronological rows excluded
