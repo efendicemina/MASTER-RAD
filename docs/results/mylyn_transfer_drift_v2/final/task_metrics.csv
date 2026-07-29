@@ -1,0 +1,4 @@
+task,frozen_baseline_macro_f1,matched_target_only_macro_f1,matched_target_only_accuracy,matched_target_only_weighted_f1,matched_target_only_balanced_accuracy,transfer_macro_f1,transfer_accuracy,transfer_weighted_f1,transfer_balanced_accuracy,macro_f1_delta_vs_frozen,macro_f1_delta_vs_matched,bootstrap_mean_delta,ci_lower,ci_upper,fold_wins,conclusion
+s6,0.226277,0.221029,0.480862,0.491344,0.244464,0.240741,0.463392,0.487562,0.269026,0.014465,0.019712,0.008720,-0.008909,0.026739,3,RESEARCH_ONLY
+s3,0.397187,0.415912,0.631117,0.642245,0.428222,0.416616,0.627376,0.640448,0.433507,0.019429,0.000704,0.001845,-0.011723,0.014823,1,RESEARCH_ONLY
+s2,0.591776,0.520098,0.862828,0.830646,0.544407,0.578578,0.849638,0.837443,0.580495,-0.013197,0.058480,0.036466,0.021010,0.052222,2,NOT_PREDICTABLE_ENOUGH_CLEAR_TRANSFER_EVIDENCE

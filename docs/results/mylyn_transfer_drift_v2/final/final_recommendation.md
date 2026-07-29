@@ -1,0 +1,5 @@
+# Final recommendation
+
+- s2: NOT_PREDICTABLE_ENOUGH
+- s3: RESEARCH_ONLY
+- s6: RESEARCH_ONLY

@@ -1,0 +1,4 @@
+task,fold,fit_scope,inner_rows,threshold
+s2,1,inner_oof_only,1252,0.24
+s2,2,inner_oof_only,2456,0.19
+s2,3,inner_oof_only,3726,0.19
